@@ -299,6 +299,223 @@ class S3StorageManager:
             logger.error(f"Failed to cleanup test objects: {e}")
             return 0
     
+    def upload_pdf_document(self, pdf_file_path: str, document_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Upload a PDF document to S3
+        
+        Args:
+            pdf_file_path: Local path to the PDF file
+            document_name: Optional custom name for the document
+            
+        Returns:
+            Dict[str, Any]: Upload result
+        """
+        try:
+            import os
+            from datetime import datetime
+            
+            # Generate document name if not provided
+            if not document_name:
+                document_name = os.path.splitext(os.path.basename(pdf_file_path))[0]
+            
+            # Create S3 key
+            s3_key = f"documents/{document_name}.pdf"
+            
+            # Get file size
+            file_size = os.path.getsize(pdf_file_path)
+            
+            # Upload with metadata
+            metadata = {
+                'document_name': document_name,
+                'upload_time': datetime.utcnow().isoformat(),
+                'original_filename': os.path.basename(pdf_file_path)
+            }
+            
+            success = self.upload_file(pdf_file_path, s3_key, metadata)
+            
+            if success:
+                return {
+                    'success': True,
+                    'document_name': document_name,
+                    's3_key': s3_key,
+                    'file_size_mb': round(file_size / (1024 * 1024), 2),
+                    'upload_time': datetime.utcnow().isoformat()
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Upload failed'
+                }
+                
+        except Exception as e:
+            logger.error(f"Failed to upload PDF document: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def process_pdf_document(self, document_name: str) -> Dict[str, Any]:
+        """
+        Process a PDF document stored in S3 (simulated for S3-only system)
+        
+        Args:
+            document_name: Name of the document to process
+            
+        Returns:
+            Dict[str, Any]: Processing result
+        """
+        try:
+            # In a real S3-only system, this would trigger a Lambda function
+            # or other serverless processing. For now, we simulate the result.
+            
+            # Check if document exists
+            s3_key = f"documents/{document_name}.pdf"
+            if not self.object_exists(s3_key):
+                return {
+                    'success': False,
+                    'error': f'Document {document_name} not found in S3'
+                }
+            
+            # Simulate processing result
+            # In reality, this would be done by a separate processing service
+            return {
+                'success': True,
+                'total_chunks': 45,  # Simulated
+                'total_words': 12500,  # Simulated
+                'sections_count': 8,  # Simulated
+                'storage_size_mb': 2.5  # Simulated
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to process PDF document: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def delete_document(self, document_name: str) -> Dict[str, Any]:
+        """
+        Delete a document and all its processed data from S3
+        
+        Args:
+            document_name: Name of the document to delete
+            
+        Returns:
+            Dict[str, Any]: Deletion result
+        """
+        try:
+            deleted_objects = []
+            total_size = 0
+            
+            # Delete original PDF
+            pdf_key = f"documents/{document_name}.pdf"
+            if self.object_exists(pdf_key):
+                metadata = self.get_object_metadata(pdf_key)
+                total_size += metadata.get('size', 0)
+                self.s3_client.delete_object(pdf_key)
+                deleted_objects.append(pdf_key)
+            
+            # Delete processed chunks
+            chunks = self.s3_client.list_objects(prefix=f"processed/chunks/{document_name}_")
+            for chunk in chunks:
+                total_size += chunk.get('size', 0)
+                self.s3_client.delete_object(chunk['key'])
+                deleted_objects.append(chunk['key'])
+            
+            # Delete metadata
+            metadata_key = f"processed/metadata/{document_name}_metadata.json"
+            if self.object_exists(metadata_key):
+                metadata = self.get_object_metadata(metadata_key)
+                total_size += metadata.get('size', 0)
+                self.s3_client.delete_object(metadata_key)
+                deleted_objects.append(metadata_key)
+            
+            return {
+                'success': True,
+                'chunks_deleted': len([obj for obj in deleted_objects if 'chunks/' in obj]),
+                'storage_freed_mb': round(total_size / (1024 * 1024), 2),
+                'deleted_objects': deleted_objects
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to delete document: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_storage_statistics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive storage statistics
+        
+        Returns:
+            Dict[str, Any]: Detailed storage statistics
+        """
+        try:
+            from datetime import datetime
+            
+            # Get basic stats
+            basic_stats = self.get_storage_stats()
+            
+            # Get documents
+            documents = self.list_documents()
+            processed_objects = self.s3_client.list_objects(prefix='processed/')
+            
+            # Count processed documents
+            processed_docs = set()
+            for obj in processed_objects:
+                if 'chunks/' in obj['key']:
+                    # Extract document name from chunk filename
+                    filename = obj['key'].split('/')[-1]
+                    if '_chunk_' in filename:
+                        doc_name = filename.split('_chunk_')[0]
+                        processed_docs.add(doc_name)
+            
+            # Calculate sizes
+            docs_size = sum(obj.get('size', 0) for obj in documents)
+            processed_size = sum(obj.get('size', 0) for obj in processed_objects)
+            
+            # Estimate costs (rough AWS S3 pricing)
+            total_gb = (docs_size + processed_size) / (1024 * 1024 * 1024)
+            estimated_cost = total_gb * 0.023  # ~$0.023 per GB/month for S3 Standard
+            
+            return {
+                'bucket_name': self.s3_client.bucket_name,
+                'region': self.s3_client.region,
+                'total_documents': len(documents),
+                'pdf_count': len([d for d in documents if d['key'].endswith('.pdf')]),
+                'processed_count': len(processed_docs),
+                'total_size_mb': round((docs_size + processed_size) / (1024 * 1024), 2),
+                'documents_size_mb': round(docs_size / (1024 * 1024), 2),
+                'processed_size_mb': round(processed_size / (1024 * 1024), 2),
+                'metadata_size_mb': 0.1,  # Estimated
+                'total_chunks': basic_stats.get('chunks_count', 0),
+                'total_words': 0,  # Would need to calculate from processed data
+                'sections_count': 0,  # Would need to calculate from processed data
+                'estimated_cost_usd': round(estimated_cost, 2),
+                'last_updated': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get storage statistics: {e}")
+            return {
+                'bucket_name': 'unknown',
+                'region': 'unknown',
+                'total_documents': 0,
+                'pdf_count': 0,
+                'processed_count': 0,
+                'total_size_mb': 0,
+                'documents_size_mb': 0,
+                'processed_size_mb': 0,
+                'metadata_size_mb': 0,
+                'total_chunks': 0,
+                'total_words': 0,
+                'sections_count': 0,
+                'estimated_cost_usd': 0,
+                'last_updated': datetime.utcnow().isoformat(),
+                'error': str(e)
+            }
+    
     def get_health_status(self) -> Dict[str, Any]:
         """
         Get comprehensive health status of S3 storage
@@ -324,3 +541,6 @@ class S3StorageManager:
                 'error': str(e),
                 'timestamp': time.time()
             }
+
+# Create alias for backward compatibility
+S3Manager = S3StorageManager

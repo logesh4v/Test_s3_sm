@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # Import specialized agents
 from agents.retrieval_agent import retrieval_agent
 from agents.chat_agent import chat_agent
+from agents.s3_management_agent import s3_management_agent
 
 # Model Configuration
 model = BedrockModel(
@@ -23,12 +24,31 @@ model = BedrockModel(
 )
 
 @tool
-def route_to_knowledge_base_manager(request: str) -> str:
+def route_to_s3_management_agent(request: str) -> str:
     """
-    Route knowledge base management requests to the Retrieval Agent
+    Route S3 document management requests to the S3 Management Agent
     
     Args:
-        request: Knowledge base management request
+        request: S3 management request (upload, process, delete, stats)
+        
+    Returns:
+        str: Response from S3 Management Agent
+    """
+    try:
+        logger.info(f"Routing to S3 Management Agent: {request}")
+        response = s3_management_agent(request)
+        return str(response)
+    except Exception as e:
+        logger.error(f"S3 management routing failed: {e}")
+        return f"❌ S3 management operation failed: {str(e)}"
+
+@tool
+def route_to_knowledge_base_manager(request: str) -> str:
+    """
+    Route knowledge base status requests to the Retrieval Agent
+    
+    Args:
+        request: Knowledge base status request
         
     Returns:
         str: Response from Retrieval Agent
@@ -84,16 +104,27 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are the Orchestrator Agent for the Royal Enf
 
 ## Available Specialized Agents:
 
-### 1. Knowledge Base Manager (`route_to_knowledge_base_manager`)
+### 1. S3 Management Agent (`route_to_s3_management_agent`)
+**Use for:**
+- PDF upload to S3
+- Document processing and management
+- S3 storage statistics and analytics
+- Document deletion and cleanup
+- Advanced search with filters
+- S3 document lifecycle management
+
+**Keywords to watch for:** upload, process, delete, storage, statistics, S3, document, PDF, manage
+
+### 2. Knowledge Base Manager (`route_to_knowledge_base_manager`)
 **Use for:**
 - S3 knowledge base status and health checks
-- Storage statistics and S3 connection status
 - Cache management and refresh operations
-- Any task related to managing the S3 knowledge base
+- Knowledge base readiness checks
+- S3 connection status
 
-**Keywords to watch for:** S3, knowledge base, status, statistics, health, cache, refresh
+**Keywords to watch for:** knowledge base, status, health, cache, refresh, ready
 
-### 2. Retrieval Agent (`route_to_retrieval_agent`)
+### 3. Retrieval Agent (`route_to_retrieval_agent`)
 **Use for:**
 - Direct search requests in the knowledge base
 - Section-specific searches
@@ -104,7 +135,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are the Orchestrator Agent for the Royal Enf
 
 **Keywords to watch for:** search, find, lookup, section, page, overview, suggestions, knowledge base
 
-### 3. Chat Agent (`route_to_chat_agent`)
+### 4. Chat Agent (`route_to_chat_agent`)
 **Use for:**
 - Natural language questions about Royal Enfield Meteor
 - Conversational interactions
@@ -117,21 +148,28 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are the Orchestrator Agent for the Royal Enf
 
 ## Routing Decision Logic:
 
-1. **S3 Knowledge Base Management** → Knowledge Base Manager
-   - "Check S3 knowledge base status"
+1. **S3 Document Management** → S3 Management Agent
+   - "Upload PDF to S3"
+   - "Process S3 PDF"
+   - "List S3 documents"
+   - "Delete document from S3"
    - "Show S3 storage statistics"
+   - "Advanced search with filters"
+
+2. **S3 Knowledge Base Status** → Knowledge Base Manager
+   - "Check S3 knowledge base status"
    - "Get S3 health status"
    - "Refresh S3 cache"
    - "Clear S3 cache"
 
-2. **Technical Search Operations** → Retrieval Agent
+3. **Technical Search Operations** → Retrieval Agent
    - "Search for information about..."
    - "Find content in section..."
    - "Show me page 25"
    - "Get search suggestions"
    - "What's in the knowledge base?"
 
-3. **Conversational Questions** → Chat Agent
+4. **Conversational Questions** → Chat Agent
    - "How do I change the oil?"
    - "What should I do if my engine won't start?"
    - "Tell me about brake maintenance"
@@ -155,6 +193,7 @@ orchestrator_agent = Agent(
     system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
     model=model,
     tools=[
+        route_to_s3_management_agent,
         route_to_knowledge_base_manager,
         route_to_retrieval_agent,
         route_to_chat_agent

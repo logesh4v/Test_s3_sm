@@ -306,6 +306,64 @@ class S3OnlyKnowledgeBase:
                 'timestamp': datetime.now().isoformat()
             }
     
+    def advanced_search(self, query: str, search_options: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Advanced search with filters and options
+        
+        Args:
+            query: Search query
+            search_options: Search options and filters
+            
+        Returns:
+            List[Dict[str, Any]]: Filtered search results
+        """
+        try:
+            all_chunks = self.get_all_chunks()
+            if not all_chunks:
+                return []
+            
+            # Apply document filter
+            if search_options.get('document_filter'):
+                doc_filter = search_options['document_filter'].lower()
+                all_chunks = [
+                    chunk for chunk in all_chunks
+                    if doc_filter in chunk.get('metadata', {}).get('document_name', '').lower()
+                ]
+            
+            # Apply section filter
+            if search_options.get('section_filter'):
+                section_filter = search_options['section_filter'].lower()
+                all_chunks = [
+                    chunk for chunk in all_chunks
+                    if section_filter in chunk.get('metadata', {}).get('section', '').lower()
+                ]
+            
+            # Perform search on filtered chunks
+            query_lower = query.lower()
+            scored_chunks = []
+            
+            for chunk in all_chunks:
+                content = chunk.get('content', '').lower()
+                score = self._calculate_relevance_score(query_lower, content)
+                
+                # Apply minimum score filter
+                min_score = search_options.get('min_score', 0.1)
+                if score >= min_score:
+                    chunk_with_score = chunk.copy()
+                    chunk_with_score['relevance_score'] = score
+                    scored_chunks.append(chunk_with_score)
+            
+            # Sort by relevance score
+            scored_chunks.sort(key=lambda x: x['relevance_score'], reverse=True)
+            
+            # Apply max results limit
+            max_results = search_options.get('max_results', 5)
+            return scored_chunks[:max_results]
+            
+        except Exception as e:
+            logger.error(f"Advanced search failed: {e}")
+            return []
+    
     def clear_cache(self) -> None:
         """Clear the chunks cache"""
         self._chunks_cache = None
