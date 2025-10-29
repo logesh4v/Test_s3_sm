@@ -356,7 +356,7 @@ class S3StorageManager:
     
     def process_pdf_document(self, document_name: str) -> Dict[str, Any]:
         """
-        Process a PDF document stored in S3 (simulated for S3-only system)
+        Process a PDF document stored in S3 - REAL processing with local download
         
         Args:
             document_name: Name of the document to process
@@ -365,10 +365,16 @@ class S3StorageManager:
             Dict[str, Any]: Processing result
         """
         try:
-            # In a real S3-only system, this would trigger a Lambda function
-            # or other serverless processing. For now, we simulate the result.
+            import os
+            import tempfile
+            import json
+            from datetime import datetime
+            from utils.pdf_processor import PDFProcessor
+            from utils.text_chunker import TextChunker
             
-            # Check if document exists
+            logger.info(f"Starting REAL PDF processing for: {document_name}")
+            
+            # Check if document exists in S3
             s3_key = f"documents/{document_name}.pdf"
             if not self.object_exists(s3_key):
                 return {
@@ -376,16 +382,132 @@ class S3StorageManager:
                     'error': f'Document {document_name} not found in S3'
                 }
             
-            # Simulate processing result
-            # In reality, this would be done by a separate processing service
-            return {
-                'success': True,
-                'total_chunks': 45,  # Simulated
-                'total_words': 12500,  # Simulated
-                'sections_count': 8,  # Simulated
-                'storage_size_mb': 2.5  # Simulated
-            }
+            # Create temporary file for download
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                temp_pdf_path = temp_file.name
             
+            try:
+                # Download PDF from S3
+                logger.info(f"Downloading PDF from S3: {s3_key}")
+                self.download_file(s3_key, temp_pdf_path)
+                
+                # Initialize processors
+                pdf_processor = PDFProcessor()
+                text_chunker = TextChunker()
+                
+                # Extract text from PDF
+                logger.info("Extracting text from PDF...")
+                extraction_result = pdf_processor.extract_text_from_pdf(temp_pdf_path)
+                
+                if not extraction_result['success']:
+                    return {
+                        'success': False,
+                        'error': f"PDF text extraction failed: {extraction_result.get('error', 'Unknown error')}"
+                    }
+                
+                full_text = extraction_result['text']
+                pages_data = extraction_result['pages']
+                
+                if not full_text.strip():
+                    return {
+                        'success': False,
+                        'error': 'PDF contains no extractable text'
+                    }
+                
+                # Extract sections
+                logger.info("Extracting sections...")
+                sections = pdf_processor.extract_sections(full_text, pages_data)
+                
+                # Create chunks
+                logger.info("Creating text chunks...")
+                chunks = text_chunker.chunk_document(
+                    text=full_text,
+                    pages_data=pages_data,
+                    sections=sections,
+                    document_name=document_name
+                )
+                
+                if not chunks:
+                    return {
+                        'success': False,
+                        'error': 'Failed to create text chunks'
+                    }
+                
+                # Upload chunks to S3
+                logger.info(f"Uploading {len(chunks)} chunks to S3...")
+                uploaded_chunks = 0
+                total_storage_size = 0
+                
+                for chunk in chunks:
+                    chunk_id = chunk.get('chunk_id', f"{document_name}_chunk_{uploaded_chunks}")
+                    chunk_s3_key = f"processed/chunks/{chunk_id}.json"
+                    
+                    # Convert chunk to JSON
+                    chunk_json = json.dumps(chunk, indent=2, default=str)
+                    chunk_size = len(chunk_json.encode('utf-8'))
+                    total_storage_size += chunk_size
+                    
+                    # Upload chunk to S3
+                    success = self.upload_content(
+                        content=chunk_json,
+                        s3_key=chunk_s3_key,
+                        content_type='application/json',
+                        metadata={
+                            'document_name': document_name,
+                            'chunk_index': str(chunk.get('metadata', {}).get('chunk_index', uploaded_chunks)),
+                            'processed_at': datetime.utcnow().isoformat()
+                        }
+                    )
+                    
+                    if success:
+                        uploaded_chunks += 1
+                    else:
+                        logger.warning(f"Failed to upload chunk: {chunk_id}")
+                
+                # Create and upload document metadata
+                doc_metadata = {
+                    'document_name': document_name,
+                    'processed_at': datetime.utcnow().isoformat(),
+                    'total_pages': len(pages_data),
+                    'total_sections': len(sections),
+                    'total_chunks': uploaded_chunks,
+                    'total_words': sum(chunk.get('metadata', {}).get('word_count', 0) for chunk in chunks),
+                    'source_file': f"{document_name}.pdf",
+                    'processing_method': 'local_with_s3_storage',
+                    'sections': [section.get('title', 'Unknown') for section in sections]
+                }
+                
+                metadata_s3_key = f"processed/metadata/{document_name}_metadata.json"
+                metadata_json = json.dumps(doc_metadata, indent=2, default=str)
+                
+                self.upload_content(
+                    content=metadata_json,
+                    s3_key=metadata_s3_key,
+                    content_type='application/json',
+                    metadata={
+                        'document_name': document_name,
+                        'type': 'document_metadata',
+                        'processed_at': datetime.utcnow().isoformat()
+                    }
+                )
+                
+                logger.info(f"Successfully processed {document_name}: {uploaded_chunks} chunks uploaded")
+                
+                return {
+                    'success': True,
+                    'total_chunks': uploaded_chunks,
+                    'total_words': doc_metadata['total_words'],
+                    'sections_count': len(sections),
+                    'storage_size_mb': round(total_storage_size / (1024 * 1024), 2),
+                    'processing_method': 'real_local_processing',
+                    'sections': [section.get('title', 'Unknown') for section in sections[:5]]  # First 5 sections
+                }
+                
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_pdf_path):
+                    os.unlink(temp_pdf_path)
+                    
         except Exception as e:
             logger.error(f"Failed to process PDF document: {e}")
             return {
