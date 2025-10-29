@@ -1,6 +1,10 @@
 """
-S3 Management Agent for Royal Enfield Knowledge Base
+S3 Management Agent for Royal Enfield Knowledge Base - S3 V3
 Strands agent specialized in S3 document management and processing
+
+Version: 3.0.0 (S3-V3)
+Real Processing: Handles actual PDF processing from S3 with local text extraction
+Complete Lifecycle: Upload → Process → Search → Delete document management
 """
 
 import logging

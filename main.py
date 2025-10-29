@@ -1,6 +1,10 @@
 """
-Royal Enfield Meteor Knowledge Base Chatbot
+Royal Enfield Meteor Knowledge Base Chatbot - S3 V3
 Main entry point for the application
+
+Version: 3.0.0 (S3-V3)
+Features: Real PDF Processing, Complete S3 Management, Advanced Search
+Architecture: S3 Download → Local Processing → S3 Upload → Knowledge Base
 """
 
 import os
@@ -10,6 +14,11 @@ from config.settings import Config
 def main():
     """Main application entry point"""
     try:
+        # Show version information
+        from config.version import print_version_info
+        print_version_info()
+        print()
+        
         # Validate configuration
         Config.validate_config()
         print("✅ Configuration validated successfully")

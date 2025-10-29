@@ -1,6 +1,10 @@
 """
-Enhanced S3 Tools for Royal Enfield Chatbot
+Enhanced S3 Tools for Royal Enfield Chatbot - S3 V3
 Pure S3-based tools for PDF upload and knowledge base management
+
+Version: 3.0.0 (S3-V3)
+Real Processing: PDFs uploaded to S3 are downloaded, processed locally, and results uploaded back
+Advanced Features: Document lifecycle management, intelligent search, storage analytics
 """
 
 import logging

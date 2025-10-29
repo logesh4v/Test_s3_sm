@@ -1,6 +1,10 @@
 """
-S3 Storage Manager for Royal Enfield Knowledge Base
+S3 Storage Manager for Royal Enfield Knowledge Base - S3 V3
 High-level interface for S3 operations with error handling and retry logic
+
+Version: 3.0.0 (S3-V3)
+Key Feature: Real PDF Processing - Downloads from S3, processes locally, uploads chunks back
+Processing Flow: S3 PDF → Download → Extract Text → Create Chunks → Upload to S3
 """
 
 import time

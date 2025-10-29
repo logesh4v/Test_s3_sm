@@ -1,24 +1,36 @@
-# Royal Enfield S3 Knowledge Base Chatbot
+# Royal Enfield S3 Knowledge Base Chatbot - S3 V3
 
-A sophisticated **S3-based multi-agent chatbot system** built with the **Strands framework** that retrieves pre-processed Royal Enfield Meteor owner's manual data directly from **AWS S3** and provides intelligent conversational access to motorcycle information.
+A sophisticated **S3-based multi-agent chatbot system** built with the **Strands framework** that processes Royal Enfield Meteor owner's manual PDFs with **real local processing** and provides intelligent conversational access to motorcycle information.
 
-## 🚀 Key Features
+## 🎯 Version 3.0.0 (S3-V3) - Real PDF Processing
 
-- **☁️ Pure S3 Architecture**: Retrieves pre-processed knowledge base data directly from AWS S3
+**Key Innovation:** PDFs uploaded to S3 are **downloaded, processed locally, and results uploaded back** to S3 for intelligent search and chat.
+
+## 🚀 Key Features (S3-V3)
+
+- **🔄 Real PDF Processing**: Downloads PDFs from S3, processes locally with text extraction, uploads chunks back
+- **📄 Complete Document Lifecycle**: Upload → Process → Search → Delete with full S3 management
 - **🤖 Multi-Agent System**: Built with Strands framework using specialized agents
-- **🔍 Intelligent Search**: Semantic search through S3-stored manual content with relevance scoring
+- **🔍 Advanced Search**: Intelligent search with filters, relevance scoring, and section-based queries
 - **💬 Conversational AI**: Natural language chat with context awareness and source citations
 - **🌐 Modern Web Interface**: Responsive chat interface with real-time messaging
-- **📊 S3 Health Monitoring**: Real-time S3 connection status and storage statistics
-- **⚡ High Performance**: Smart caching and optimized S3 data retrieval
+- **📊 S3 Analytics**: Comprehensive storage statistics, cost estimation, and health monitoring
+- **⚡ Intelligent Chunking**: Smart text chunking with overlap, topic extraction, and metadata
 
-## 🏗️ S3-Based Architecture
+## 🏗️ S3-V3 Processing Architecture
 
-The system uses a **pure S3-based architecture** with specialized Strands agents:
+The system uses a **hybrid S3 + local processing architecture** with specialized Strands agents:
 
+### 🔄 Processing Flow
+```
+S3 PDF Upload → Download to Local → Text Extraction → Intelligent Chunking → Upload Chunks to S3 → Search & Chat
+```
+
+### 🤖 Specialized Agents
 - **🎯 Orchestrator Agent**: Routes requests to appropriate specialized agents
-- **🔎 Retrieval Agent**: Performs semantic search on S3-stored data
-- **💭 Chat Agent**: Manages conversational interactions with S3 context
+- **📄 S3 Management Agent**: Handles PDF upload, processing, and document lifecycle
+- **🔎 Retrieval Agent**: Performs advanced search on processed S3 data
+- **💭 Chat Agent**: Manages conversational interactions with processed context
 - **📊 S3 Manager**: Handles all AWS S3 operations and health monitoring
 
 ## 📁 Project Structure
