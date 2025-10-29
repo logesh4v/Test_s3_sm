@@ -1,0 +1,7 @@
+strands
+boto3
+PyPDF2
+pdfplumber
+flask
+python-dotenv
+requests
